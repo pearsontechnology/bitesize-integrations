@@ -1,2 +1,4 @@
 node_modules
+web/pluckyui-*
+web/index.html
 config/*.json
