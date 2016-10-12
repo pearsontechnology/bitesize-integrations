@@ -1,4 +1,4 @@
-import fetchWrap from './fetchwrapper';
+import fetchWrap from './fetchWrapper';
 
 export default {
 	getRelease: function(projectName) {
