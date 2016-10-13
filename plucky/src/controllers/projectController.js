@@ -54,25 +54,39 @@ router.post('/:name', function(req, res) {
 			// build finishes or fails
 			res.status(201).send(doc);
 			releaseId = doc._id;
-			const jobs = ['seed-job'];
+
+			return jenkins.executeJob(project.jenkins, 'seed-job');
+		}).then((seedJobResult) => {
+			if(seedJobResult === 'failed') {
+				releaseService.updateRelease(releaseId, {projectBuilt: 'failed'}).then(function(doc) {
+					logger.info('release set to failed');
+				});
+				return new Error('Build failed');
+			}
+
+			const jobs = [];
 
 			yaml.getBuildProjects(project).components.forEach((asset) => {
 				const skipBuilds = project.skipBuilds.indexOf(asset.name);
 				if(skipBuilds === -1) {
-					jobs.push(asset.name);
+					jobs.push(jenkins.executeJob(project.jenkins, asset.name));
 				}
 			});
 
-			// may need to record current state and do some other type of lookup to see if the jobs are done or not
-			return jenkins.executeJobs(project.jenkins, jobs);
+			return Promise.all(jobs);
 		}).then((result) => {
-			if(result === 'failed') {
-				return releaseService.updateRelease(releaseId, {projectBuilt: 'failed'}).then(function(doc) {
-					logger.info('release set to failed');
-				});
+			for(let i = 0; i < result.length; i++) {
+				if( result[i] === 'failed') {
+					releaseService.updateRelease(releaseId, {projectBuilt: 'failed'}).then(function(doc) {
+						logger.info('release set to failed');
+					});
+					return new Error('Build failed');
+				}
 			}
 
-			releaseService.updateRelease(releaseId, {projectBuilt: true}).then(function(doc) {
+			return jenkins.executeJob(project.jenkins, 'console-docker-image');
+		}).then(() => {
+			return releaseService.updateRelease(releaseId, {projectBuilt: true}).then(function(doc) {
 				logger.info('release got updated');
 			});
 		}).catch((err) => {
