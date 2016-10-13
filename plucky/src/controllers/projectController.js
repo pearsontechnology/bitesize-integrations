@@ -54,10 +54,7 @@ router.post('/:name', function(req, res) {
 			// build finishes or fails
 			res.status(201).send(doc);
 			releaseId = doc._id;
-			// kick off seed-job instead of wait for idle
-			return jenkins.waitForIdle(project.jenkins, 'seed-job');
-		}).then(() => {
-			const jobs = [];
+			const jobs = ['seed-job'];
 
 			yaml.getBuildProjects(project).components.forEach((asset) => {
 				const skipBuilds = project.skipBuilds.indexOf(asset.name);
