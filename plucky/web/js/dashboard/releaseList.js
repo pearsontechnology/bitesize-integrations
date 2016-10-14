@@ -11,9 +11,15 @@ class ReleaseList extends React.Component {
 		this.state = {
 			releaseList: []
 		};
+
+		const getReleaseInterval = setInterval(this.getReleases.bind(this), 5000);
 	}
 
 	componentWillMount() {
+		this.getReleases();
+	}
+
+	getReleases() {
 		releaseApi.getRelease(this.props.project).then((releaseList) => {
 			this.setState({
 				releaseList
@@ -51,12 +57,11 @@ class ReleaseList extends React.Component {
 			if(release.projectBuilt) {
 				release.environmentOrder.forEach((env) => {
 					const releaseStatus = release.releaseEnv[env.name];
-					console.log(releaseStatus === 'inprogress');
 					if(releaseStatus === 'failed') {
 						return releaseEnv.push(
 							<Step key={`${release._id}-${env.name}`}>
 								<StepButton 
-									onClick={() => { this.deploy(release._id, env.name); }}
+									onClick={(ev) => { this.deploy(release._id, env.name); }}
 									icon={<WarningIcon color={red500} />} >{env.name}</StepButton>
 							</Step>
 						);
@@ -64,7 +69,7 @@ class ReleaseList extends React.Component {
 					releaseEnv.push(
 						<Step key={`${release._id}-${env.name}`}>
 							<StepButton 
-								onClick={() => { this.deploy(release._id, env.name); }}
+								onClick={(ev) => { this.deploy(release._id, env.name); }}
 								active={(releaseStatus === 'inprogress')}
 								completed={(releaseStatus === 'completed')} >{env.name}</StepButton>
 						</Step>

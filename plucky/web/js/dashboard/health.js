@@ -8,9 +8,14 @@ class EnvironmentHealth extends React.Component {
 		this.state = {
 			healthList: []
 		};
+		const refresh = setInterval(this.getHealth.bind(this), 5000);
 	}
 
 	componentWillMount() {
+		this.getHealth();
+	}
+
+	getHealth() {
 		environmentApi.getEnvironmentHealth(this.props.project).then((health) => {
 			this.setState({
 				healthList: health

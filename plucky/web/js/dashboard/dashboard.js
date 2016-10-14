@@ -12,8 +12,7 @@ class Dashboard extends React.Component {
 	constructor(props) {
 		super(props);
 		this.state = {
-			projects: [],
-			expanded: false
+			projects: []
 		};
 	}
 
@@ -38,8 +37,8 @@ class Dashboard extends React.Component {
 		this.state.projects.forEach((project) => {
 			projectList.push(
 				<div className="col-md-6" key={`${project.name}`}>
-					<Card expanded={this.state.expanded} onExpandChange={(expanded)=>{ this.setState({expanded: expanded}); }}>
-						<CardTitle title={project.name} actAsExpander showExpandableButton />
+					<Card>
+						<CardTitle title={project.name}/>
 						<CardActions>
 							<FlatButton 
 								backgroundColor="green"
@@ -61,7 +60,7 @@ class Dashboard extends React.Component {
 							<Health project={project.name} />
 						</CardText>
 						<Divider />
-						<CardText expandable={true}>
+						<CardText>
 							<ReleaseList project={project.name} />
 						</CardText>
 					</Card>
