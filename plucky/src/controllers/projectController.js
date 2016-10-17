@@ -34,7 +34,7 @@ router.post('/:name', function(req, res) {
 
 	const startDirectory = process.cwd();
 	process.chdir(project.bitesizeFiles);
-	const child = execFile('../hed-console/createbuild.sh', [`pull -${req.query.version}`], (err, stdout, stderr) => {
+	const child = execFile('../hed-console/createbuild.sh', ['pull', `-${req.query.version}`], (err, stdout, stderr) => {
 		if (err) {
 			logger.error(err);
 			return res.sendStatus(400);
