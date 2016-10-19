@@ -7,9 +7,22 @@ const express = require('express'),
 	jenkins = require('../persistence/jenkins'),
 	sys = require('util'),
 	execFile = require('child_process').execFile,
+	exec = require('child_process').exec,
 	releaseService = require('../services/releaseService'),
 	logger = require('../utility/logger'),
 	environmentHealthService = require('../services/environmentHealthService');
+
+const updateHedBuildFiles = () => {
+	return new Promise((resolve, reject) => {
+		exec('git pull', (error, stdout) => {
+			if (error) {
+			    return reject(error);
+		  	}
+		  	console.log(stdout);
+			resolve();
+		});
+	});
+};
 
 
 // get all the projects available
@@ -34,67 +47,74 @@ router.post('/:name', function(req, res) {
 
 	const startDirectory = process.cwd();
 	process.chdir(project.bitesizeFiles);
-	const child = execFile('../hed-console/createbuild.sh', ['pull', `-${req.query.version}`], (err, stdout, stderr) => {
-		if (err) {
-			logger.error(err);
-			return res.sendStatus(400);
-		}
-		// this is an ugly way to get the final version number that was created..but i can fix it later if we need to
-		const releaseVersion = stdout.match(/Created bitesize build for version:\s\d+.\d+.\d+/)[0].match(/\d+.\d+.\d+/)[0];
-		let releaseId; 
-
-		releaseService.insertRelease({
-			version: releaseVersion,
-			projectName: project.name,
-			projectBuilt: !project.needsBuildBeforeDeploy,
-			releaseEnv: {},
-			environmentOrder: yaml.getOrderedEnvironments(project),
-		}).then((doc) => {
-			// immediately send the document but the UI will need to refresh to know if the
-			// build finishes or fails
-			res.status(201).send(doc);
-			releaseId = doc._id;
-
-			return jenkins.executeJob(project.jenkins, 'seed-job');
-		}).then((seedJobResult) => {
-			if(seedJobResult === 'failed') {
-				releaseService.updateRelease(releaseId, {projectBuilt: 'failed'}).then(function(doc) {
-					logger.info('release set to failed');
-				});
-				return new Error('Build failed');
+	updateHedBuildFiles().then(() => {
+		console.log('i updated!*************************');
+		const child = execFile('./createbuild.sh', ['pull', `-${req.query.version}`], (err, stdout, stderr) => {
+			if (err) {
+				logger.error(err);
+				return res.sendStatus(400);
 			}
+			// this is an ugly way to get the final version number that was created..but i can fix it later if we need to
+			const releaseVersion = stdout.match(/Created bitesize build for version:\s\d+.\d+.\d+/)[0].match(/\d+.\d+.\d+/)[0];
+			let releaseId; 
 
-			const jobs = [];
+			releaseService.insertRelease({
+				version: releaseVersion,
+				projectName: project.name,
+				projectBuilt: !project.needsBuildBeforeDeploy,
+				releaseEnv: {},
+				environmentOrder: yaml.getOrderedEnvironments(project),
+			}).then((doc) => {
+				// immediately send the document but the UI will need to refresh to know if the
+				// build finishes or fails
+				res.status(201).send(doc);
+				releaseId = doc._id;
 
-			yaml.getBuildProjects(project).components.forEach((asset) => {
-				const skipBuilds = project.skipBuilds.indexOf(asset.name);
-				if(skipBuilds === -1) {
-					jobs.push(jenkins.executeJob(project.jenkins, asset.name));
-				}
-			});
-
-			return Promise.all(jobs);
-		}).then((result) => {
-			for(let i = 0; i < result.length; i++) {
-				if( result[i] === 'failed') {
+				return jenkins.executeJob(project.jenkins, 'seed-job');
+			}).then((seedJobResult) => {
+				if(seedJobResult === 'failed') {
 					releaseService.updateRelease(releaseId, {projectBuilt: 'failed'}).then(function(doc) {
 						logger.info('release set to failed');
 					});
 					return new Error('Build failed');
 				}
-			}
 
-			return jenkins.executeJob(project.jenkins, 'console-docker-image');
-		}).then(() => {
-			return releaseService.updateRelease(releaseId, {projectBuilt: true}).then(function(doc) {
-				logger.info('release got updated');
+				const jobs = [];
+
+				yaml.getBuildProjects(project).components.forEach((asset) => {
+					const skipBuilds = project.skipBuilds.indexOf(asset.name);
+					if(skipBuilds === -1) {
+						jobs.push(jenkins.executeJob(project.jenkins, asset.name));
+					}
+				});
+
+				return Promise.all(jobs);
+			}).then((result) => {
+				for(let i = 0; i < result.length; i++) {
+					if( result[i] === 'failed') {
+						releaseService.updateRelease(releaseId, {projectBuilt: 'failed'}).then(function(doc) {
+							logger.info('release set to failed');
+						});
+						return new Error('Build failed');
+					}
+				}
+
+				return jenkins.executeJob(project.jenkins, 'console-docker-image');
+			}).then(() => {
+				return releaseService.updateRelease(releaseId, {projectBuilt: true}).then(function(doc) {
+					logger.info('release got updated');
+				});
+			}).catch((err) => {
+				logger.error('error', err);
 			});
-		}).catch((err) => {
-			logger.error('error', err);
 		});
+	}).catch((err) => {
+		logger.error('error in updating hed-repo', err);
+	}).finally(() => {
+		process.chdir(startDirectory);
 	});
+	
 	// go back to the original directory or we are screwed!
-	process.chdir(startDirectory);
 
 });
 
