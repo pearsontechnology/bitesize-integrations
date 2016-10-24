@@ -123,7 +123,7 @@ router.post('/:name', function(req, res) {
 					releaseStatus = 'failed';
 				}
 
-				return releaseService.updateRelease(releaseObj._id, {releaseEnv: { dev: releaseStatus }});
+				return releaseService.updateRelease(releaseId, {releaseEnv: { dev: releaseStatus }});
 			}).catch((err) => {
 				logger.error('error', err);
 			});
