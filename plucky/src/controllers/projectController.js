@@ -47,17 +47,20 @@ router.post('/:name', function(req, res) {
 
 	const startDirectory = process.cwd();
 	process.chdir(project.bitesizeFiles);
+	let releaseVersion;
+	// this is going to go away anwyays so not going to bother cleaning up
 	updateHedBuildFiles().then(() => {
-		console.log('i updated!*************************');
+		// starts the creatBuild.sh jobs
 		const child = execFile('./createbuild.sh', ['pull', `-${req.query.version}`], (err, stdout, stderr) => {
 			if (err) {
 				logger.error(err);
 				return res.sendStatus(400);
 			}
 			// this is an ugly way to get the final version number that was created..but i can fix it later if we need to
-			const releaseVersion = stdout.match(/Created bitesize build for version:\s\d+.\d+.\d+/)[0].match(/\d+.\d+.\d+/)[0];
+			releaseVersion = stdout.match(/Created bitesize build for version:\s\d+.\d+.\d+/)[0].match(/\d+.\d+.\d+/)[0];
 			let releaseId; 
 
+			//create the release object and store it in mongodb
 			releaseService.insertRelease({
 				version: releaseVersion,
 				projectName: project.name,
@@ -81,6 +84,7 @@ router.post('/:name', function(req, res) {
 
 				const jobs = [];
 
+				// run all the jobs that for building hed-console
 				yaml.getBuildProjects(project).components.forEach((asset) => {
 					const skipBuilds = project.skipBuilds.indexOf(asset.name);
 					if(skipBuilds === -1) {
@@ -101,18 +105,34 @@ router.post('/:name', function(req, res) {
 
 				return jenkins.executeJob(project.jenkins, 'console-docker-image');
 			}).then(() => {
-				return releaseService.updateRelease(releaseId, {projectBuilt: true}).then(function(doc) {
+				return releaseService.updateRelease(releaseId, {
+					projectBuilt: true,
+					releaseEnv: {
+						dev: 'inprogress'
+					}
+				}).then(function(doc) {
 					logger.info('release got updated');
 				});
+			}).then(() => {
+				// kick of dev-deploy automatically
+				return jenkins.executeJob(project.jenkins, `dev-deploy`, {console_VERSION:releaseVersion});
+			}).then((result) => {
+				let releaseStatus = 'completed';
+				
+				if(result === 'failed') {
+					releaseStatus = 'failed';
+				}
+
+				return releaseService.updateRelease(releaseObj._id, {releaseEnv: { dev: releaseStatus }});
 			}).catch((err) => {
 				logger.error('error', err);
 			});
 		});
+		process.chdir(startDirectory);
 	}).catch((err) => {
 		logger.error('error in updating hed-repo', err);
-	}).finally(() => {
 		process.chdir(startDirectory);
-	});
+	})
 	
 	// go back to the original directory or we are screwed!
 
