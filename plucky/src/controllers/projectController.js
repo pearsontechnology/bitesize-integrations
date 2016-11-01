@@ -56,6 +56,7 @@ router.post('/:name', function(req, res) {
 				logger.error(err);
 				return res.sendStatus(400);
 			}
+			logger.info(stdout);
 			// this is an ugly way to get the final version number that was created..but i can fix it later if we need to
 			releaseVersion = stdout.match(/Created bitesize build for version:\s\d+.\d+.\d+/)[0].match(/\d+.\d+.\d+/)[0];
 			let releaseId; 
