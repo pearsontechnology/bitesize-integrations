@@ -71,6 +71,7 @@ class ReleaseList extends React.Component {
 							<StepButton 
 								onClick={(ev) => { this.deploy(release._id, env.name); }}
 								active={(releaseStatus === 'inprogress')}
+								disabled={env.name === 'prd' ? true : false}
 								completed={(releaseStatus === 'completed')} >{env.name}</StepButton>
 						</Step>
 					);
